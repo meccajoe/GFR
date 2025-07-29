@@ -99,3 +99,4 @@ if __name__ == "__main__":
         print(f"Inserting {len(matches)} matches...")
         insert_to_supabase(matches)
         print("Done.")
+
