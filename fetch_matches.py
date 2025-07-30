@@ -62,7 +62,7 @@ def fetch_and_insert_matches(league_id, season):
 
 def main():
     season = 2020
-    leagues = supabase.table("men_leagues").select("api_league_id").execute().data
+    leagues = supabase.table("mens_leagues").select("api_league_id").execute().data
 
     for league in leagues:
         league_id = league["api_league_id"]
