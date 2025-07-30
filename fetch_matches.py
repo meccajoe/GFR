@@ -1,85 +1,74 @@
 import os
 import requests
-from datetime import datetime
 from supabase import create_client, Client
+from dotenv import load_dotenv
+from datetime import datetime
+import time
 
-# Load environment variables (Railway will automatically inject these)
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-API_FOOTBALL_KEY = os.environ["API_FOOTBALL_KEY"]
+load_dotenv()
 
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 
-# Constants
-LEAGUE_IDS = [39, 61, 135, 140, 78]  # Premier League, Ligue 1, Serie A, La Liga, Bundesliga
-SEASON = 2020
-API_BASE_URL = "https://v3.football.api-sports.io/fixtures"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-HEADERS = {
-    "x-apisports-key": API_FOOTBALL_KEY
-}
-
-
-def fetch_matches(league_id, season):
+def fetch_and_insert_matches(league_id, season):
     print(f"Fetching matches for league {league_id} in {season}")
+    url = f"https://v3.football.api-sports.io/fixtures"
     params = {
         "league": league_id,
         "season": season,
         "status": "FT"
     }
-    response = requests.get(API_BASE_URL, headers=HEADERS, params=params)
-    response.raise_for_status()
+    headers = {
+        "x-apisports-key": API_FOOTBALL_KEY
+    }
+
+    response = requests.get(url, headers=headers, params=params)
     data = response.json()
-    return data.get("response", [])
+    fixtures = data.get("response", [])
 
+    print(f"Found {len(fixtures)} matches.")
 
-def insert_matches(matches):
-    inserted_count = 0
-    for match in matches:
-        fixture = match["fixture"]
-        teams = match["teams"]
-        goals = match["goals"]
-        league = match["league"]
+    for fixture in fixtures:
+        match = fixture["fixture"]
+        teams = fixture["teams"]
+        goals = fixture["goals"]
+        league = fixture["league"]
 
-        home_id = teams["home"]["id"]
-        away_id = teams["away"]["id"]
-        home_name = teams["home"]["name"]
-        away_name = teams["away"]["name"]
-        match_id = fixture["id"]
-        date = fixture["date"]
-        home_score = goals["home"]
-        away_score = goals["away"]
-        is_neutral = fixture.get("venue", {}).get("neutral", False)
+        match_data = {
+            "match_id": match["id"],
+            "home_team_id": teams["home"]["id"],
+            "away_team_id": teams["away"]["id"],
+            "home_team_name": teams["home"]["name"],
+            "away_team_name": teams["away"]["name"],
+            "league_id": league["id"],
+            "season": str(league["season"]),
+            "match_date": match["date"],
+            "home_score": goals["home"],
+            "away_score": goals["away"],
+            "is_completed": match["status"]["short"] == "FT",
+            "is_neutral": match.get("neutral", False),
+            "last_updated": datetime.utcnow().isoformat()
+        }
 
         try:
-            supabase.table("match_results").insert({
-                "match_id": match_id,
-                "home_team_id": home_id,
-                "away_team_id": away_id,
-                "home_team_name": home_name,
-                "away_team_name": away_name,
-                "league_id": league["id"],
-                "season": str(league["season"]),
-                "match_date": date,
-                "home_score": home_score,
-                "away_score": away_score,
-                "is_completed": True,
-                "is_neutral": is_neutral,
-                "last_updated": datetime.utcnow().isoformat()
-            }).execute()
-            inserted_count += 1
+            response = supabase.table("match_results").insert(match_data).execute()
+            print(f"Inserted match {match['id']}")
         except Exception as e:
-            print(f"Failed to insert match {match_id}: {e}")
-
-    print(f"Inserted {inserted_count} matches...\n")
-
+            print(f"Failed to insert match {match['id']}: {e}")
+    print("Done.")
 
 def main():
-    for league_id in LEAGUE_IDS:
-        matches = fetch_matches(league_id, SEASON)
-        insert_matches(matches)
+    season = 2020
+    leagues = supabase.table("men_leagues").select("api_league_id").execute().data
 
+    for league in leagues:
+        league_id = league["api_league_id"]
+        if league_id:
+            fetch_and_insert_matches(league_id, season)
+            time.sleep(1.5)  # Slight delay to avoid hitting rate limits
 
 if __name__ == "__main__":
     main()
