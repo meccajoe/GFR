@@ -1,18 +1,21 @@
+import os
 import requests
 from supabase import create_client, Client
+from dotenv import load_dotenv
 from datetime import datetime
 import time
 
-SUPABASE_URL = "https://ifluudzbwomhiveydmbb.supabase.co"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmbHV1ZHpid29taGl2ZXlkbWJiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTI2NjYwMiwiZXhwIjoyMDY0ODQyNjAyfQ.Kb4XhzY-78mbrSCtlXymGM_G0eHFj44dHytma7eXa6A"
-API_FOOTBALL_KEY = "1457bb65bdcf56cd52de247d8e03a180"
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-SEASONS = [2021, 2022, 2023, 2024]
 def fetch_and_insert_matches(league_id, season):
     print(f"Fetching matches for league {league_id} in {season}")
-    url = "https://v3.football.api-sports.io/fixtures"
+    url = f"https://v3.football.api-sports.io/fixtures"
     params = {
         "league": league_id,
         "season": season,
@@ -46,23 +49,26 @@ def fetch_and_insert_matches(league_id, season):
             "home_score": goals["home"],
             "away_score": goals["away"],
             "is_completed": match["status"]["short"] == "FT",
+            "is_neutral": match.get("neutral", False),
             "last_updated": datetime.utcnow().isoformat()
         }
 
         try:
-            supabase.table("match_results").insert(match_data).execute()
+            response = supabase.table("match_results").insert(match_data).execute()
             print(f"Inserted match {match['id']}")
         except Exception as e:
             print(f"Failed to insert match {match['id']}: {e}")
     print("Done.")
 
 def main():
+    season = [2021,2022,2023,2024]
     leagues = supabase.table("mens_leagues").select("api_league_id").execute().data
-    for season in SEASONS:
-        for league in leagues:
-            league_id = league["api_league_id"]
+
+    for league in leagues:
+        league_id = league["api_league_id"]
+        if league_id:
             fetch_and_insert_matches(league_id, season)
-            time.sleep(1)
+            time.sleep(1.5)  # Slight delay to avoid hitting rate limits
 
 if __name__ == "__main__":
     main()
