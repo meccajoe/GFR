@@ -6,5 +6,5 @@ COPY . .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "fetch_all_mens_league_matches.py"]
+CMD ["python", "fetch_all_matches.py"]
 
