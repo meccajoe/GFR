@@ -44,7 +44,7 @@ def insert_match(match, season):
             "home_score": match["goals"]["home"],
             "away_score": match["goals"]["away"],
             "is_completed": match["fixture"]["status"]["short"] == "FT",
-            "is_neutral": match["fixture"]["neutral"],
+            "is_neutral": match.get("neutral", False),
             "last_updated": match["fixture"]["updated"]
         }
 
